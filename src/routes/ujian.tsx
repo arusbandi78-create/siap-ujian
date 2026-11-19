@@ -7,6 +7,7 @@ import { Brand } from "@/components/Brand";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { getExamInfo, logViolation, saveAnswers, startExam, submitExam } from "@/lib/exam.functions";
 import { studentSession, backupKey, examCacheKey, pendingSubmitKey, clearExamCache, exitLockKey, activeExamKey } from "@/lib/student-session";
@@ -246,6 +247,22 @@ function ExamRunner({ token, exam, onSuspended, onDone }: { token: string; exam:
   });
   const dirty = useRef<Set<string>>(new Set(Object.keys(JSON.parse(localStorage.getItem(bk) ?? "{}"))));
   const [idx, setIdx] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selected.size === exam.questions.length) setSelected(new Set());
+    else setSelected(new Set(exam.questions.map((x) => x.id)));
+  };
+  const isSelectAll = exam.questions.length > 0 && selected.size === exam.questions.length;
+
   const [online, setOnline] = useState(() => navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [pending, setPending] = useState(dirty.current.size);
@@ -413,8 +430,14 @@ function ExamRunner({ token, exam, onSuspended, onDone }: { token: string; exam:
       <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[1fr_280px]">
         <section className="rounded-2xl border bg-card p-5 md:p-8">
           <div className="mb-4 flex items-center justify-between">
-            <span className="text-sm font-semibold text-primary">Soal {idx + 1} dari {exam.questions.length}</span>
-            <Button variant={answers[q.id]?.flagged ? "default" : "outline"} size="sm" onClick={toggleFlag}><Flag className="h-4 w-4" /> Ragu-ragu</Button>
+            <div className="flex items-center gap-2">
+              <Checkbox checked={selected.has(q.id)} onCheckedChange={() => toggleSelect(q.id)} aria-label={`Pilih soal ${idx + 1}`} />
+              <span className="text-sm font-semibold text-primary">Soal {idx + 1} dari {exam.questions.length}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant={isSelectAll ? "default" : "outline"} onClick={toggleSelectAll} disabled={exam.questions.length === 0}>{isSelectAll ? "Pilih Tidak Semua" : "Pilih Semua"}</Button>
+              <Button variant={answers[q.id]?.flagged ? "default" : "outline"} size="sm" onClick={toggleFlag}><Flag className="h-4 w-4" /> Ragu-ragu</Button>
+            </div>
           </div>
           <p className="whitespace-pre-wrap text-lg leading-relaxed">{q.prompt}</p>
           <QuestionMediaView media={q.media} label={`Media soal ${idx + 1}`} exam />
