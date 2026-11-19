@@ -1,7 +1,7 @@
 export type Incident = {
   id: string; type: string; occurred_at: string;
   exams: { title: string; code: string } | null;
-  attempts: { status: string; students: { full_name: string; username: string; class_name: string } | null } | null;
+  attempts: { id: string; exam_id: string; status: string; deadline_at: string | null; students: { full_name: string; username: string; class_name: string } | null } | null;
 };
 
 export function filterIncidents(rows: Incident[], search: string, type: string, status: string) {

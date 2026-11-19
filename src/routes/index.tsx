@@ -1,23 +1,26 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { KeyRound, Lock, User, GraduationCap } from "lucide-react";
+import { KeyRound, Lock, User, GraduationCap, Search } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { studentLogin } from "@/lib/exam.functions";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { studentLogin, getStudentsByCode } from "@/lib/exam.functions";
 import { studentSession } from "@/lib/student-session";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Masuk Ujian — SiapUjian" },
-      { name: "description", content: "Masuk ujian digital dengan kode ujian, username, dan PIN." },
+      { name: "description", content: "Masuk ujian digital dengan kode ujian, nama lengkap, dan PIN." },
       { property: "og:title", content: "Masuk Ujian — SiapUjian" },
-      { property: "og:description", content: "Masuk ujian digital dengan kode ujian, username, dan PIN." },
+      { property: "og:description", content: "Masuk ujian digital dengan kode ujian, nama lengkap, dan PIN." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -27,15 +30,37 @@ export const Route = createFileRoute("/")({
 
 const schema = z.object({
   code: z.string().trim().min(4, "Kode ujian minimal 4 karakter").max(12),
-  username: z.string().trim().min(3, "Username minimal 3 karakter").max(40),
+  full_name: z.string().trim().min(2, "Pilih nama dari daftar").max(120),
   pin: z.string().regex(/^[0-9]{4,8}$/, "PIN 4–8 digit angka"),
 });
 
+type Student = { full_name: string; class_name: string };
+
 function StudentLogin() {
   const login = useServerFn(studentLogin);
+  const fetchStudents = useServerFn(getStudentsByCode);
   const navigate = useNavigate();
-  const [form, setForm] = useState({ code: "", username: "", pin: "" });
+  const [form, setForm] = useState({ code: "", full_name: "", pin: "" });
   const [loading, setLoading] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [fetching, setFetching] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const loadStudents = useCallback(async (code: string) => {
+    if (code.trim().length < 4) { setStudents([]); return; }
+    setFetching(true);
+    try {
+      const res = await fetchStudents({ data: { code: code.trim() } });
+      if (res.ok) setStudents(res.students);
+      else { setStudents([]); toast.error(res.message); }
+    } catch { setStudents([]); }
+    finally { setFetching(false); }
+  }, [fetchStudents]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { if (form.code.trim().length >= 4) void loadStudents(form.code); }, 400);
+    return () => clearTimeout(t);
+  }, [form.code, loadStudents]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,17 +108,43 @@ function StudentLogin() {
           </div>
           <Field icon={<KeyRound className="h-4 w-4" />} label="Kode Ujian" id="code">
             <Input id="code" autoComplete="off" className="pl-9 uppercase tracking-widest" value={form.code}
-              onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="MTK7A2" />
+              onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase(), full_name: "" })} placeholder="MTK7A2" />
           </Field>
-          <Field icon={<User className="h-4 w-4" />} label="Username" id="username">
-            <Input id="username" autoComplete="username" className="pl-9" value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase() })} placeholder="budi.s" />
+          <Field icon={<User className="h-4 w-4" />} label="Nama Lengkap" id="full_name">
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between pl-9 font-normal">
+                  {form.full_name || (fetching ? "Memuat daftar..." : "Pilih atau ketik nama...")}
+                  <Search className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Ketik nama..." />
+                  <CommandList>
+                    <CommandEmpty>{fetching ? "Memuat..." : "Tidak ditemukan."}</CommandEmpty>
+                    <CommandGroup>
+                      {students.map((s) => (
+                        <CommandItem
+                          key={s.full_name}
+                          value={s.full_name}
+                          onSelect={() => { setForm({ ...form, full_name: s.full_name }); setOpen(false); }}
+                        >
+                          <span className="font-medium">{s.full_name}</span>
+                          {s.class_name && <span className="ml-2 text-xs text-muted-foreground">{s.class_name}</span>}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </Field>
           <Field icon={<Lock className="h-4 w-4" />} label="PIN" id="pin">
             <Input id="pin" type="password" inputMode="numeric" maxLength={8} className="pl-9" value={form.pin}
               onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })} placeholder="••••" />
           </Field>
-          <Button type="submit" className="w-full" size="lg" disabled={loading}>
+          <Button type="submit" className="w-full" size="lg" disabled={loading || !form.full_name}>
             {loading ? "Memeriksa..." : "Masuk Ujian"}
           </Button>
         </form>
@@ -107,7 +158,7 @@ function Field({ icon, label, id, children }: { icon: React.ReactNode; label: st
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10">{icon}</span>
         {children}
       </div>
     </div>
