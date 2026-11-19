@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { KeyRound, Trash2, Upload } from "lucide-react";
+import { KeyRound, Trash2, Upload, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader, Empty } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ function Siswa() {
   const qc = useQueryClient();
   const [f, setF] = useState({ full_name: "", class_name: "", pin: "" });
   const [bulk, setBulk] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   const { data: list = [] } = useQuery({
     queryKey: ["students"],
@@ -26,9 +28,18 @@ function Siswa() {
     },
   });
 
-  const add = async (s: typeof f) => {
+  const usernameFromName = (name: string) => name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s._-]/g, "")
+    .replace(/\s+/g, ".")
+    .replace(/\.+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 40);
+
+  const add = async (s: typeof f & { _username?: string }) => {
+    const username = s._username || usernameFromName(s.full_name) || s.full_name.slice(0, 3);
     const { error } = await supabase.rpc("create_student", {
-      _username: "", _full_name: s.full_name, _class: s.class_name, _pin: s.pin,
+      _username: username, _full_name: s.full_name, _class: s.class_name, _pin: s.pin,
     });
     if (error) throw new Error(error.message);
   };
@@ -51,6 +62,45 @@ function Siswa() {
     },
     onSuccess: ({ ok, errs }) => { toast.success(`${ok} siswa diimpor`); if (errs.length) toast.error(errs.slice(0, 3).join("\n")); setBulk(""); qc.invalidateQueries({ queryKey: ["students"] }); },
   });
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Nama Lengkap", "Kelas", "PIN"],
+      ["Budi Santoso", "7A", "1234"],
+      ["Siti Rahayu", "7B", "5678"],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Siswa");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "template-siswa.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileImport = async (file: File) => {
+    const ab = await file.arrayBuffer();
+    const wb = XLSX.read(ab, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as any[][];
+    let ok = 0; const errs: string[] = [];
+    for (let i = 1; i < rows.length && i < 301; i++) {
+      const r = rows[i];
+      if (!r || r.every((c) => c == null || c === "")) continue;
+      const full_name = String(r[0] ?? "").trim();
+      const class_name = String(r[1] ?? "").trim();
+      const pin = String(r[2] ?? "").trim();
+      if (!full_name) continue;
+      try { await add({ full_name, class_name, pin }); ok++; } catch (e) { errs.push(`${full_name}: ${(e as Error).message}`); }
+    }
+    toast.success(`${ok} siswa diimpor`);
+    if (errs.length) toast.error(errs.slice(0, 3).join("\n"));
+    setImportFile(null);
+    qc.invalidateQueries({ queryKey: ["students"] });
+  };
 
   async function resetPin(id: string) {
     const pin = prompt("PIN baru (4–8 digit angka):");
@@ -82,7 +132,12 @@ function Siswa() {
             <h2 className="font-bold">Impor cepat</h2>
             <p className="text-xs text-muted-foreground">Satu baris per siswa: nama, kelas, PIN</p>
             <Textarea rows={5} value={bulk} onChange={(e) => setBulk(e.target.value)} placeholder={"Budi Santoso, 7A, 1234"} />
-            <Button variant="outline" className="w-full" disabled={!bulk.trim() || importBulk.isPending} onClick={() => importBulk.mutate()}><Upload className="h-4 w-4" /> Impor</Button>
+            <div className="flex gap-2 mb-2">
+              <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4" /> Unduh Template Excel</Button>
+              <input type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleFileImport(e.target.files[0]); }} />
+              <Button variant="outline" size="sm" onClick={() => document.querySelector('input[type="file"]')?.click()}><Upload className="h-4 w-4" /> Unggah Excel</Button>
+            </div>
+            <Button variant="outline" className="w-full" disabled={!bulk.trim() || importBulk.isPending} onClick={() => importBulk.mutate()}><Upload className="h-4 w-4" /> Impor Teks</Button>
           </div>
         </div>
         <div className="lg:col-span-2">
