@@ -42,6 +42,7 @@ function ExamEditor() {
   const navigate = useNavigate();
   const [e, setE] = useState<Exam | null>(null);
   const [saving, setSaving] = useState(false);
+  const [soalFilter, setSoalFilter] = useState<string>("all");
 
   const { data } = useQuery({
     queryKey: ["exam", id],
@@ -143,20 +144,55 @@ function ExamEditor() {
         </TabsContent>
 
         <TabsContent value="soal" className="mt-4 space-y-2">
-          {data.questions.length === 0 && <p className="text-sm text-muted-foreground">Bank soal kosong. <Link to="/guru/soal" className="text-primary">Tambah soal</Link></p>}
-          {data.questions.length > 0 && (
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-sm text-muted-foreground">{data.selected.size} dari {data.questions.length} terpilih</span>
-              <Button
-                size="sm"
-                variant={data.selected.size === data.questions.length ? "default" : "outline"}
-                onClick={toggleSelectAll}
-              >
-                {data.selected.size === data.questions.length ? "Pilih Tidak Semua" : "Pilih Semua"}
-              </Button>
-            </div>
-          )}
-          {data.questions.map((q) => {
+          {(() => {
+            const allTypes = data.questions.map((q) => q.type);
+            const uniqueTypes = [...new Set(allTypes)];
+            const filtered = soalFilter === "all" ? data.questions : data.questions.filter((q) => q.type === soalFilter);
+            const selectedInFiltered = filtered.filter((q) => data.selected.has(q.id)).length;
+            return (
+              <>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <Button
+                    size="sm"
+                    variant={soalFilter === "all" ? "default" : "outline"}
+                    onClick={() => setSoalFilter("all")}
+                  >
+                    Semua ({data.questions.length})
+                  </Button>
+                  {uniqueTypes.map((t) => (
+                    <Button
+                      key={t}
+                      size="sm"
+                      variant={soalFilter === t ? "default" : "outline"}
+                      onClick={() => setSoalFilter(t)}
+                    >
+                      {typeLabel[t]} ({allTypes.filter((x) => x === t).length})
+                    </Button>
+                  ))}
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {filtered.length} ditampilkan
+                  </span>
+                </div>
+                {filtered.length === 0 && <p className="text-sm text-muted-foreground">Tidak ada soal tipe ini.</p>}
+                {filtered.length > 0 && (
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-sm text-muted-foreground">{selectedInFiltered} dari {filtered.length} terpilih</span>
+                    <Button
+                      size="sm"
+                      variant={selectedInFiltered === filtered.length && filtered.length > 0 ? "default" : "outline"}
+                      onClick={() => {
+                        if (selectedInFiltered === filtered.length) {
+                          filtered.forEach((q) => toggleQ(q.id, false));
+                        } else {
+                          filtered.forEach((q) => toggleQ(q.id, true));
+                        }
+                      }}
+                    >
+                      {selectedInFiltered === filtered.length && filtered.length > 0 ? "Pilih Tidak Semua" : "Pilih Semua"}
+                    </Button>
+                  </div>
+                )}
+                {filtered.map((q) => {
             const on = data.selected.has(q.id);
             return (
               <label key={q.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-3 ${on ? "border-primary" : ""}`}>
@@ -168,6 +204,9 @@ function ExamEditor() {
               </label>
             );
           })}
+    </>
+  );
+})()}
         </TabsContent>
 
         <TabsContent value="mode" className="mt-4 space-y-4 rounded-2xl border bg-card p-5">
