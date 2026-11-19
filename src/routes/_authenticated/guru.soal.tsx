@@ -19,6 +19,7 @@ import { compactOptions, mediaSchema, parseMedia, type QuestionMedia } from "@/l
 import { QuestionMediaEditor } from "@/components/QuestionMediaEditor";
 import { QuestionMediaView } from "@/components/QuestionMedia";
 import { QuestionPreview } from "@/components/QuestionPreview";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const Route = createFileRoute("/_authenticated/guru/soal")({ head: () => ({ meta: [{ title: "Bank Soal — SiapUjian" }, { name: "description", content: "Kelola bank soal asesmen guru." }, { property: "og:title", content: "Bank Soal — SiapUjian" }, { property: "og:description", content: "Kelola bank soal asesmen guru." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }), component: BankSoal });
 
@@ -41,7 +42,20 @@ function BankSoal() {
   const [previewQ, setPreviewQ] = useState<(typeof list)[number] | null>(null);
   const [uploads, setUploads] = useState(0);
   const onBusy = (busy: boolean) => setUploads((n) => Math.max(0, n + (busy ? 1 : -1)));
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selected.size === shown.length) setSelected(new Set());
+    else setSelected(new Set(shown.map((q) => q.id)));
+  };
   const { data: list = [] } = useQuery({
     queryKey: ["questions"],
     queryFn: async () => {
@@ -91,6 +105,18 @@ function BankSoal() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const deleteMany = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("questions").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["questions"] });
+      setSelected(new Set());
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   function edit(q: (typeof list)[number]) {
     setPreviewing(false);
     const opts = (q.options as string[]) ?? [];
@@ -112,7 +138,23 @@ function BankSoal() {
 
   return (
     <div>
-      <PageHeader title="Bank Soal" desc={`${list.length} soal tersimpan`} action={<Button onClick={() => { setPreviewing(false); setDraft({ ...empty, options: ["", "", "", ""] }); }}><Plus className="h-4 w-4" /> Soal baru</Button>} />
+      <PageHeader
+        title="Bank Soal"
+        desc={`${list.length} soal tersimpan`}
+        action={
+          <div className="flex items-end gap-2">
+            <Button onClick={() => { setPreviewing(false); setDraft({ ...empty, options: ["", "", "", ""] }); }}><Plus className="h-4 w-4" /> Soal baru</Button>
+            {selected.size > 0 ? (
+              <>
+                <Button variant="outline" size="sm" onClick={() => toggleSelectAll()}>Pilih semua</Button>
+                <Button variant="destructive" size="sm" onClick={() => { if (window.confirm(`Hapus ${selected.size} soal terpilih?`)) deleteMany.mutate(Array.from(selected)); }} disabled={deleteMany.isPending}><Trash2 className="h-4 w-4" /> Hapus terpilih</Button>
+              </>
+            ) : (
+              <Button variant="destructive" size="sm" onClick={() => { if (window.confirm("Hapus semua soal? Tindakan tidak dapat dibatalkan.")) deleteMany.mutate(list.map((q) => q.id)); }} disabled={deleteMany.isPending || list.length === 0}><Trash2 className="h-4 w-4" /> Hapus semua</Button>
+            )}
+          </div>
+        }
+      />
       <div className="mb-4 flex flex-wrap gap-2">
         <Input placeholder="Cari soal, mapel, topik…" className="max-w-xs" value={filter.q} onChange={(e) => setFilter({ ...filter, q: e.target.value })} />
         <Select value={filter.type} onValueChange={(v) => setFilter({ ...filter, type: v })}>
@@ -128,15 +170,22 @@ function BankSoal() {
         {shown.map((q) => (
           <div key={q.id} className="rounded-2xl border bg-card p-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="mb-1 flex flex-wrap gap-1.5">
-                  <Badge>{typeLabel[q.type]}</Badge>
-                  {q.subject && <Badge variant="secondary">{q.subject}</Badge>}
-                  {q.topic && <Badge variant="outline">{q.topic}</Badge>}
-                  <Badge variant="outline">{q.points} poin</Badge>
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={selected.has(q.id)}
+                  onCheckedChange={() => toggleSelect(q.id)}
+                  aria-label={`Pilih soal ${q.id}`}
+                />
+                <div className="min-w-0">
+                  <div className="mb-1 flex flex-wrap gap-1.5">
+                    <Badge>{typeLabel[q.type]}</Badge>
+                    {q.subject && <Badge variant="secondary">{q.subject}</Badge>}
+                    {q.topic && <Badge variant="outline">{q.topic}</Badge>}
+                    <Badge variant="outline">{q.points} poin</Badge>
+                  </div>
+                  <p className="whitespace-pre-wrap break-words">{q.prompt}</p>
+                  <QuestionMediaView media={parseMedia(q.media)} label="Media pertanyaan" />
                 </div>
-                <p className="whitespace-pre-wrap break-words">{q.prompt}</p>
-                <QuestionMediaView media={parseMedia(q.media)} label="Media pertanyaan" />
               </div>
               <div className="flex shrink-0 gap-1">
                 <Button size="icon" variant="ghost" onClick={() => setPreviewQ(q)} aria-label="Pratinjau tampilan siswa" title="Pratinjau tampilan siswa"><Eye className="h-4 w-4" /></Button>
