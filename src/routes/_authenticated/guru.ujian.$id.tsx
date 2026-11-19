@@ -86,6 +86,28 @@ function ExamEditor() {
     qc.invalidateQueries({ queryKey: ["exam", id] });
   }
 
+  async function toggleSelectAll() {
+    if (!data) return;
+    const missing = data.questions.filter((q) => !data.selected.has(q.id));
+
+    if (missing.length === 0) {
+      // Deselect all
+      const { error } = await supabase.from("exam_questions").delete().eq("exam_id", id);
+      if (error) { toast.error(error.message); return; }
+    } else {
+      // Select all missing
+      const startPos = data.selected.size;
+      const rows = missing.map((q, i) => ({
+        exam_id: id,
+        question_id: q.id,
+        position: startPos + i,
+      }));
+      const { error } = await supabase.from("exam_questions").insert(rows);
+      if (error) { toast.error(error.message); return; }
+    }
+    qc.invalidateQueries({ queryKey: ["exam", id] });
+  }
+
   async function remove() {
     if (!confirm("Hapus ujian ini beserta semua hasilnya?")) return;
     const { error } = await supabase.from("exams").delete().eq("id", id);
@@ -122,6 +144,18 @@ function ExamEditor() {
 
         <TabsContent value="soal" className="mt-4 space-y-2">
           {data.questions.length === 0 && <p className="text-sm text-muted-foreground">Bank soal kosong. <Link to="/guru/soal" className="text-primary">Tambah soal</Link></p>}
+          {data.questions.length > 0 && (
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-sm text-muted-foreground">{data.selected.size} dari {data.questions.length} terpilih</span>
+              <Button
+                size="sm"
+                variant={data.selected.size === data.questions.length ? "default" : "outline"}
+                onClick={toggleSelectAll}
+              >
+                {data.selected.size === data.questions.length ? "Pilih Tidak Semua" : "Pilih Semua"}
+              </Button>
+            </div>
+          )}
           {data.questions.map((q) => {
             const on = data.selected.has(q.id);
             return (
