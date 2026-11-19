@@ -418,7 +418,7 @@ export type Database = {
         Returns: boolean
       }
       verify_student_login: {
-        Args: { _code: string; _full_name: string; _pin: string }
+        Args: { _code: string; _full_name: string }
         Returns: {
           exam_id: string
           student_id: string

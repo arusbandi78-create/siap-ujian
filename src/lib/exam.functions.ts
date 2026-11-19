@@ -71,7 +71,6 @@ export const studentLogin = createServerFn({ method: "POST" })
       .object({
         code: z.string().trim().min(4).max(12),
         full_name: z.string().trim().min(2).max(120),
-        pin: z.string().regex(/^[0-9]{4,8}$/),
       })
       .parse(d),
   )
@@ -80,11 +79,10 @@ export const studentLogin = createServerFn({ method: "POST" })
     const { data: rows, error } = await db.rpc("verify_student_login", {
       _code: data.code,
       _full_name: data.full_name,
-      _pin: data.pin,
     });
     if (error) throw new Error("Gagal memverifikasi. Coba lagi.");
     const row = (rows as any[])?.[0];
-    if (!row) return { ok: false as const, message: "Kode ujian, nama, atau PIN salah." };
+    if (!row) return { ok: false as const, message: "Kode ujian atau nama tidak ditemukan." };
 
     const token = crypto.randomUUID() + crypto.randomUUID().replace(/-/g, "");
     const token_hash = await sha256(token);

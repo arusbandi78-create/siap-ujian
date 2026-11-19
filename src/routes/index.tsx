@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { KeyRound, Lock, User, GraduationCap, Search } from "lucide-react";
+import { KeyRound, User, GraduationCap, Search } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,9 +18,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Masuk Ujian — SiapUjian" },
-      { name: "description", content: "Masuk ujian digital dengan kode ujian, nama lengkap, dan PIN." },
+      { name: "description", content: "Masuk ujian digital dengan kode ujian dan nama lengkap." },
       { property: "og:title", content: "Masuk Ujian — SiapUjian" },
-      { property: "og:description", content: "Masuk ujian digital dengan kode ujian, nama lengkap, dan PIN." },
+      { property: "og:description", content: "Masuk ujian digital dengan kode ujian dan nama lengkap." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -31,7 +31,6 @@ export const Route = createFileRoute("/")({
 const schema = z.object({
   code: z.string().trim().min(4, "Kode ujian minimal 4 karakter").max(12),
   full_name: z.string().trim().min(2, "Pilih nama dari daftar").max(120),
-  pin: z.string().regex(/^[0-9]{4,8}$/, "PIN 4–8 digit angka"),
 });
 
 type Student = { full_name: string; class_name: string };
@@ -40,7 +39,7 @@ function StudentLogin() {
   const login = useServerFn(studentLogin);
   const fetchStudents = useServerFn(getStudentsByCode);
   const navigate = useNavigate();
-  const [form, setForm] = useState({ code: "", full_name: "", pin: "" });
+  const [form, setForm] = useState({ code: "", full_name: "" });
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [fetching, setFetching] = useState(false);
@@ -140,6 +139,7 @@ function StudentLogin() {
               </PopoverContent>
             </Popover>
           </Field>
+
           <Field icon={<Lock className="h-4 w-4" />} label="PIN" id="pin">
             <Input id="pin" type="password" inputMode="numeric" maxLength={8} className="pl-9" value={form.pin}
               onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })} placeholder="••••" />

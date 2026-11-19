@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { KeyRound, Trash2, Upload, Download } from "lucide-react";
+import { Trash2, Upload, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader, Empty } from "@/components/PageHeader";
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_authenticated/guru/siswa")({ head: () =>
 
 function Siswa() {
   const qc = useQueryClient();
-  const [f, setF] = useState({ full_name: "", class_name: "", pin: "" });
+  const [f, setF] = useState({ full_name: "", class_name: "" });
   const [bulk, setBulk] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
 
@@ -39,14 +39,14 @@ function Siswa() {
   const add = async (s: typeof f & { _username?: string }) => {
     const username = s._username || usernameFromName(s.full_name) || s.full_name.slice(0, 3);
     const { error } = await supabase.rpc("create_student", {
-      _username: username, _full_name: s.full_name, _class: s.class_name, _pin: s.pin,
+      _username: "", _full_name: s.full_name, _class: s.class_name, _pin: "",
     });
     if (error) throw new Error(error.message);
   };
 
   const create = useMutation({
     mutationFn: () => add(f),
-    onSuccess: () => { toast.success("Siswa ditambahkan"); setF({ full_name: "", class_name: f.class_name, pin: "" }); qc.invalidateQueries({ queryKey: ["students"] }); },
+    onSuccess: () => { toast.success("Siswa ditambahkan"); setF({ full_name: "", class_name: f.class_name }); qc.invalidateQueries({ queryKey: ["students"] }); },
     onError: (e) => toast.error((e as Error).message),
   });
 
@@ -55,8 +55,8 @@ function Siswa() {
        const lines = bulk.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 300);
        let ok = 0; const errs: string[] = [];
        for (const l of lines) {
-         const [full_name, class_name, pin] = l.split(/[,;\t]/).map((s) => s?.trim() ?? "");
-         try { await add({ full_name: full_name ?? "", class_name: class_name ?? "", pin: pin ?? "" }); ok++; } catch (e) { errs.push(`${full_name}: ${(e as Error).message}`); }
+       const [full_name, class_name] = l.split(/[,;\t]/).map((s) => s?.trim() ?? "");
+       try { await add({ full_name: full_name ?? "", class_name: class_name ?? "" }); ok++; } catch (e) { errs.push(`${full_name}: ${(e as Error).message}`); }
        }
        return { ok, errs };
     },
@@ -84,7 +84,9 @@ function Siswa() {
   const handleFileImport = async (file: File) => {
     const ab = await file.arrayBuffer();
     const wb = XLSX.read(ab, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
+    const sheetName = wb.SheetNames[0];
+    if (!sheetName) throw new Error("File Excel kosong");
+    const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as any[][];
     let ok = 0; const errs: string[] = [];
     for (let i = 1; i < rows.length && i < 301; i++) {
@@ -102,12 +104,6 @@ function Siswa() {
     qc.invalidateQueries({ queryKey: ["students"] });
   };
 
-  async function resetPin(id: string) {
-    const pin = prompt("PIN baru (4–8 digit angka):");
-    if (!pin) return;
-    const { error } = await supabase.rpc("reset_student_pin", { _id: id, _pin: pin });
-    error ? toast.error(error.message) : toast.success("PIN diperbarui");
-  }
   async function remove(id: string) {
     if (!confirm("Hapus siswa beserta riwayat ujiannya?")) return;
     const { error } = await supabase.from("students").delete().eq("id", id);
@@ -116,26 +112,23 @@ function Siswa() {
 
   return (
     <div>
-      <PageHeader title="Siswa" desc="Akun siswa untuk masuk ujian (nama lengkap + PIN). Semua siswa Anda dapat mengikuti ujian Anda dengan kode ujian." />
+      <PageHeader title="Siswa" desc="Akun siswa untuk masuk ujian (nama lengkap). Semua siswa Anda dapat mengikuti ujian Anda dengan kode ujian." />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6">
           <form className="space-y-3 rounded-2xl border bg-card p-5" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
             <h2 className="font-bold">Tambah siswa</h2>
             <Input placeholder="Nama lengkap" value={f.full_name} maxLength={120} onChange={(e) => setF({ ...f, full_name: e.target.value })} />
-            <div className="grid grid-cols-2 gap-2">
-              <Input placeholder="Kelas" value={f.class_name} maxLength={40} onChange={(e) => setF({ ...f, class_name: e.target.value })} />
-              <Input placeholder="PIN" inputMode="numeric" maxLength={8} value={f.pin} onChange={(e) => setF({ ...f, pin: e.target.value.replace(/\D/g, "") })} />
-            </div>
+            <Input placeholder="Kelas" value={f.class_name} maxLength={40} onChange={(e) => setF({ ...f, class_name: e.target.value })} />
             <Button className="w-full" disabled={create.isPending}>Simpan</Button>
           </form>
           <div className="space-y-3 rounded-2xl border bg-card p-5">
             <h2 className="font-bold">Impor cepat</h2>
-            <p className="text-xs text-muted-foreground">Satu baris per siswa: nama, kelas, PIN</p>
+            <p className="text-xs text-muted-foreground">Satu baris per siswa: nama, kelas</p>
             <Textarea rows={5} value={bulk} onChange={(e) => setBulk(e.target.value)} placeholder={"Budi Santoso, 7A, 1234"} />
             <div className="flex gap-2 mb-2">
               <Button variant="outline" size="sm" onClick={downloadTemplate}><Download className="h-4 w-4" /> Unduh Template Excel</Button>
               <input type="file" accept=".xlsx,.csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleFileImport(e.target.files[0]); }} />
-              <Button variant="outline" size="sm" onClick={() => document.querySelector('input[type="file"]')?.click()}><Upload className="h-4 w-4" /> Unggah Excel</Button>
+              <Button variant="outline" size="sm" onClick={() => (document.querySelector('input[type="file"]') as HTMLInputElement | null)?.click()}><Upload className="h-4 w-4" /> Unggah Excel</Button>
             </div>
             <Button variant="outline" className="w-full" disabled={!bulk.trim() || importBulk.isPending} onClick={() => importBulk.mutate()}><Upload className="h-4 w-4" /> Impor Teks</Button>
           </div>
@@ -151,7 +144,6 @@ function Siswa() {
                   <TableCell className="font-medium">{s.full_name}</TableCell>
                   <TableCell>{s.class_name}</TableCell>
                       <TableCell className="text-right">
-                        <Button size="icon" variant="ghost" aria-label="Reset PIN" onClick={() => resetPin(s.id)}><KeyRound className="h-4 w-4" /></Button>
                         <Button size="icon" variant="ghost" aria-label="Hapus" onClick={() => remove(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </TableCell>
                     </TableRow>
