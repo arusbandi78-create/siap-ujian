@@ -392,7 +392,6 @@ export type Database = {
         Args: {
           _class: string
           _full_name: string
-          _pin: string
           _username: string
         }
         Returns: string

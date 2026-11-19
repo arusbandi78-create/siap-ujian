@@ -140,10 +140,6 @@ function StudentLogin() {
             </Popover>
           </Field>
 
-          <Field icon={<Lock className="h-4 w-4" />} label="PIN" id="pin">
-            <Input id="pin" type="password" inputMode="numeric" maxLength={8} className="pl-9" value={form.pin}
-              onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "") })} placeholder="••••" />
-          </Field>
           <Button type="submit" className="w-full" size="lg" disabled={loading || !form.full_name}>
             {loading ? "Memeriksa..." : "Masuk Ujian"}
           </Button>

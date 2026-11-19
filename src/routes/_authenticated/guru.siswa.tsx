@@ -39,7 +39,7 @@ function Siswa() {
   const add = async (s: typeof f & { _username?: string }) => {
     const username = s._username || usernameFromName(s.full_name) || s.full_name.slice(0, 3);
     const { error } = await supabase.rpc("create_student", {
-      _username: "", _full_name: s.full_name, _class: s.class_name, _pin: "",
+      _username: "", _full_name: s.full_name, _class: s.class_name,
     });
     if (error) throw new Error(error.message);
   };
@@ -87,16 +87,16 @@ function Siswa() {
     const sheetName = wb.SheetNames[0];
     if (!sheetName) throw new Error("File Excel kosong");
     const ws = wb.Sheets[sheetName];
+    if (!ws) throw new Error("Sheet tidak ditemukan");
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as any[][];
     let ok = 0; const errs: string[] = [];
     for (let i = 1; i < rows.length && i < 301; i++) {
       const r = rows[i];
       if (!r || r.every((c) => c == null || c === "")) continue;
-      const full_name = String(r[0] ?? "").trim();
-      const class_name = String(r[1] ?? "").trim();
-      const pin = String(r[2] ?? "").trim();
-      if (!full_name) continue;
-      try { await add({ full_name, class_name, pin }); ok++; } catch (e) { errs.push(`${full_name}: ${(e as Error).message}`); }
+       const full_name = String(r[0] ?? "").trim();
+       const class_name = String(r[1] ?? "").trim();
+       if (!full_name) continue;
+       try { await add({ full_name, class_name }); ok++; } catch (e) { errs.push(`${full_name}: ${(e as Error).message}`); }
     }
     toast.success(`${ok} siswa diimpor`);
     if (errs.length) toast.error(errs.slice(0, 3).join("\n"));
