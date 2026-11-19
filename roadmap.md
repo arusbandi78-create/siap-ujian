@@ -1,0 +1,11 @@
+# Penguatan ujian
+- [x] Unggah banyak soal bertahap dan baca seluruh bank soal.
+- [x] Batasi jumlah soal per siswa dengan pilihan acak stabil.
+- [x] Tangguhkan saat keluar; hanya guru dapat mengizinkan kembali.
+- [x] Lindungi cadangan offline dari pembukaan ulang tanpa izin.
+- [x] Uji aturan dan alur siswa sampai verifikasi guru.
+- [x] Tambahkan dan uji sirine polisi saat pelanggaran terdeteksi.
+- [x] Tingkatkan suara sirine bertahap dalam batas volume perangkat.
+- [x] Lengkapi riwayat insiden untuk peninjauan setelah ujian dan uji alurnya.
+- [x] Tambahkan media soal dan pilihan jawaban dengan unggahan privat dan YouTube.
+- [x] Uji penyimpanan, pemutaran siswa, pengacakan dan keamanan media.
